@@ -1,4 +1,6 @@
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
 #include <Include/ota.h>
 #include <driverlib/flash.h>
 #include <driverlib/vims.h>
@@ -67,7 +69,7 @@ static uint32_t ota_FlashProgram(
     DISABLE_HWI();
     DISABLE_CACHE();
 
-    uint32_t rc = FlashProgram(pui8DataBuffer, ui32Address, ui32Address);
+    uint32_t rc = FlashProgram(pui8DataBuffer, ui32Address, ui32Count);
 
     RESTORE_CACHE();
     RESTORE_HWI();
@@ -203,18 +205,23 @@ int ota_dl_finish(struct ota_dl_state *state) {
     return 0;
 }
 
+#define BUFSIZ 16
+
 void test_ota(void) {
     struct ota_dl_params p;
     struct ota_dl_state s;
-    p.dl_size = 10;
+    uint8_t *buf = (uint8_t *) malloc(BUFSIZ);
+
+    memset(buf, '0', BUFSIZ);
+
+    p.dl_size = BUFSIZ;
     p.entrypoint = 0;
 
 
     ota_dl_init(&s, &p);
-#if 1
     ota_dl_begin(&s);
+    ota_dl_process(&s, buf, BUFSIZ);
     ota_dl_finish(&s);
-#endif
 
     PWM_Handle pwm;
     PWM_Params pwm_p;

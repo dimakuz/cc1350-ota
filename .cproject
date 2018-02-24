@@ -157,6 +157,7 @@
 									<listOptionValue builtIn="false" value="${TARGET_CONTENT_BASE}"/>
 								</option>
 								<option id="com.ti.rtsc.buildDefinitions.XDC_3.16.tool.COMPILE_OPTIONS.2050205060" name="Additional compiler options (--compileOptions)" superClass="com.ti.rtsc.buildDefinitions.XDC_3.16.tool.COMPILE_OPTIONS" useByScannerDiscovery="false" value="&quot;${COMPILER_FLAGS} &quot;" valueType="string"/>
+								<option id="com.ti.rtsc.buildDefinitions.XDC_3.16.tool.CFG_ARGS.1656150952" name="Configuration script arguments (--cfgArgs)" superClass="com.ti.rtsc.buildDefinitions.XDC_3.16.tool.CFG_ARGS" value="" valueType="string"/>
 							</tool>
 						</toolChain>
 					</folderInfo>
