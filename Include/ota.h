@@ -2,18 +2,23 @@
 #define OTA_H
 
 #include <stdint.h>
+#include <ti/sysbios/knl/Task.h>
 
-#define OTA_FLASH_BASE 0x18000
+#define OTA_FLASH_BASE 0x17000
 #define OTA_FLASH_SIZE 0x8000
+#define OTA_ACTIVE_ZONE 0
+#define OTA_INACTIVE_ZONE 1
 #define NR_OTA_ZONES    2
 #define OTA_ZONE_SIZE (OTA_FLASH_SIZE / NR_OTA_ZONES)
 #define OTA_DONE_MAGIC 0x23513dce
 
-typedef void (*ota_entrypoint_t)(void);
+//typedef void (*ota_entrypoint_t)(void);
+#define ota_entrypoint_t ti_sysbios_knl_Task_FuncPtr
 
 struct ota_metadata {
     unsigned long gen;
     ota_entrypoint_t entrypoint;
+    size_t size;
     unsigned long done;
 };
 
@@ -42,7 +47,6 @@ struct ota_dl_state {
     size_t dl_done;
     ota_entrypoint_t entrypoint;
     size_t sector_size;
-    size_t first_sector;
     size_t nr_sectors;
     /* dl_csum */
 };

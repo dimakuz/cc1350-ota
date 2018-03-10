@@ -59,7 +59,6 @@
 #include "bcomdef.h"
 #include "peripheral.h"
 #include "simple_peripheral.h"
-#include "Application/newapp.h"
 
 /* Header files required to enable instruction fetch cache */
 #include <inc/hw_memmap.h>
@@ -208,12 +207,13 @@ int main()
   GAPRole_createTask();
 
   SimpleBLEPeripheral_createTask();
-  NewApp_createTask();
-  ota_startup();
+
+  // ota_startup();
   test_ota();
 
   /* enable interrupts and start SYS/BIOS */
   BIOS_start();
+
 
   return 0;
 }
