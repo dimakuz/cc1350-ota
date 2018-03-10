@@ -200,7 +200,7 @@
 		<link>
 			<name>TOOLS/cc26xx_app.cmd</name>
 			<type>1</type>
-			<locationURI>TI_BLE_SDK_BASE/source/ti/blestack/common/cc26xx/ccs/cc26xx_app.cmd</locationURI>
+			<locationURI>PROJECT_LOC/TOOLS/cc26xx_app.cmd</locationURI>
 		</link>
 		<link>
 			<name>TOOLS/cc26xx_app_oad.cmd</name>

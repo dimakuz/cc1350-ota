@@ -128,7 +128,7 @@
 									<listOptionValue builtIn="false" value="${COM_TI_SIMPLELINK_CC13X0_SDK_INSTALL_DIR}/source/ti/drivers/rf/lib/rf_multiMode_cc13x0.arm3"/>
 									<listOptionValue builtIn="false" value="${TI_BLE_SDK_BASE}/source/ti/blestack/rom/common_rom_releases/03282014/common_rom.symbols"/>
 									<listOptionValue builtIn="false" value="${WORKSPACE_LOC}/simple_peripheral_cc1350lp_stack_FlashROM/TOOLS/ccs_linker_defines.cmd"/>
-									<listOptionValue builtIn="false" value="${TI_BLE_SDK_BASE}/source/ti/blestack/common/cc26xx/ccs/cc26xx_app.cmd"/>
+									<listOptionValue builtIn="false" value="${PROJECT_ROOT}/TOOLS/cc26xx_app.cmd"/>
 									<listOptionValue builtIn="false" value="libc.a"/>
 								</option>
 								<option id="com.ti.ccstudio.buildDefinitions.TMS470_16.9.linkerID.DIAG_SUPPRESS.221074942" name="Suppress diagnostic &lt;id&gt; (--diag_suppress)" superClass="com.ti.ccstudio.buildDefinitions.TMS470_16.9.linkerID.DIAG_SUPPRESS" useByScannerDiscovery="false" valueType="stringList">
