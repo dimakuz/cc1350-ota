@@ -276,26 +276,16 @@ extern int payload_test_app_end(void);
 #define _UINT(x) ((uintptr_t) x)
 
 void test_ota(void) {
-    PWM_init();
-    PWM_Params pwm_p;
-    PWM_Params_init(&pwm_p);
-    pwm_p.dutyUnits = PWM_DUTY_US;
-    pwm_p.dutyValue = 100;
-    pwm_p.periodUnits = PWM_PERIOD_US;
-    pwm_p.periodValue = 100;
-
-    PWM_Handle pwm = PWM_open(Board_PWM1, &pwm_p);
-    while (pwm == NULL)
-        ;
-    PWM_start(pwm);
-
-    size_t func_size = _UINT(payload_test_app_end) - _UINT(payload_test_app);
+    size_t func_size = _UINT(payload_test_app_end) - _UINT(&OTA_REGION->zones[OTA_ACTIVE_ZONE].payload);
+    size_t offset = _UINT(payload_test_app) - _UINT(&(OTA_REGION->zones[OTA_ACTIVE_ZONE].payload[0]));
     uint8_t *buf = malloc(func_size);
-    memcpy(buf, (uint8_t *) 0x17000, func_size);
+
+    memset(buf, 0, offset);
+    memcpy(&buf[offset], payload_test_app, func_size - offset);
 
     struct ota_dl_params p;
     p.dl_size = func_size;
-    p.entrypoint = 0;
+    p.entrypoint = (ota_entrypoint_t) offset;
 
     struct ota_dl_state s;
     ota_dl_init(&s, &p);
@@ -304,5 +294,5 @@ void test_ota(void) {
     ota_dl_finish(&s);
     __ota_copy_zone(&OTA_REGION->zones[OTA_ACTIVE_ZONE],
                     &OTA_REGION->zones[OTA_INACTIVE_ZONE]);
-    payload_test_app(0, 0);
+    ota_zone_entrypoint(&OTA_REGION->zones[OTA_ACTIVE_ZONE])(0, 0);
 }
