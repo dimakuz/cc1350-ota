@@ -82,6 +82,12 @@
 /* RAM starts at 0x20000000 and is 20KB */
 #define RAM_APP_BASE            0x20000000
 #define RAM_LEN                 0x5000
+
+#define RAM_OTA_LEN				0x1000
+#define RAM_NOTA_LEN			(RAM_LEN - RAM_OTA_LEN)
+#define RAM_OTA_BASE			RAM_APP_BASE
+#define RAM_NOTA_BASE			(RAM_OTA_BASE + RAM_OTA_LEN)
+
 /* RAM reserved by ROM code starts. */
 #define RAM_RESERVED_OFFSET      0x4F00
 
@@ -111,9 +117,11 @@ MEMORY
     /* Application uses internal RAM for data */
     /* RAM Size 16 KB */
     #ifdef ICALL_RAM0_START
-        SRAM (RWX) : origin = RAM_APP_BASE, length = ICALL_RAM0_START - RAM_APP_BASE
+        SRAM_NOTA (RWX) : origin = RAM_NOTA_BASE, length = ICALL_RAM0_START - RAM_NOTA_BASE
+        SRAM_OTA (RWX) : origin = RAM_OTA_BASE, length = RAM_OTA_LEN
     #else //default
-        SRAM (RWX) : origin = RAM_APP_BASE, length = RAM_RESERVED_OFFSET
+        SRAM_NOTA (RWX) : origin = RAM_NOTA_BASE, length = RAM_RESERVED_OFFSET - RAM_OTA_LEN
+        SRAM_OTA (RWX) : origin = RAM_OTA_BASE, length = RAM_OTA_LEN
     #endif
 }
 
@@ -142,7 +150,18 @@ SECTIONS
 
     .ccfg           :   >  FLASH_NOTA_LAST_PAGE (HIGH)
 
-	GROUP > SRAM
+    GROUP > SRAM_OTA
+    {
+        .ota.data
+        .ota.bss
+        .ota.vtable
+        .ota.vtable_ram
+         ota.vtable_ram
+        .ota.sysmem
+        .ota.nonretenvar
+    }
+
+	GROUP > SRAM_NOTA
 	{
 	    .data
 	    .bss
@@ -151,16 +170,9 @@ SECTIONS
 	     vtable_ram
 	    .sysmem
     	.nonretenvar
-    	.ota.data
-	    .ota.bss
-		.ota.vtable
-	    .ota.vtable_ram
-	     ota.vtable_ram
-	    .ota.sysmem
-    	.ota.nonretenvar
 	} LOAD_END(heapStart)
 
-	.stack          :   >  SRAM (HIGH) LOAD_START(heapEnd)
+	.stack          :   >  SRAM_NOTA (HIGH) LOAD_START(heapEnd)
 }
 
 /* Create global constant that points to top of stack */

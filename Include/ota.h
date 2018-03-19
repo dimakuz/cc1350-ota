@@ -11,14 +11,25 @@
 #define NR_OTA_ZONES    2
 #define OTA_ZONE_SIZE (OTA_FLASH_SIZE / NR_OTA_ZONES)
 #define OTA_DONE_MAGIC 0x23513dce
+#define OTA_SRAM_BASE   0x20000000
 
-//typedef void (*ota_entrypoint_t)(void);
+
 #define ota_entrypoint_t ti_sysbios_knl_Task_FuncPtr
+#define DEFINE_ENTRYPOINY(sym)  const char * __attribute__((strong))  __ota_entrypoint_##sym = "sym";
+
+struct ota_load {
+    uintptr_t dest;
+    size_t offset;
+    size_t len;
+};
+
+#define OTA_MAX_LOADS 3
 
 struct ota_metadata {
     unsigned long gen;
     ota_entrypoint_t entrypoint;
     size_t size;
+    struct ota_load loads[OTA_MAX_LOADS];
     unsigned long done;
 };
 
@@ -38,6 +49,7 @@ extern struct ota_region *OTA_REGION;
 struct ota_dl_params {
     size_t dl_size;
     ota_entrypoint_t entrypoint;
+    struct ota_load loads[OTA_MAX_LOADS];
 };
 
 struct ota_dl_state {
@@ -48,10 +60,12 @@ struct ota_dl_state {
     ota_entrypoint_t entrypoint;
     size_t sector_size;
     size_t nr_sectors;
+    struct ota_load loads[OTA_MAX_LOADS];
     /* dl_csum */
 };
 
 void ota_startup(void);
+void ota_dl_params_init(struct ota_dl_params *params);
 void ota_dl_init(struct ota_dl_state *state, struct ota_dl_params *params);
 int ota_dl_begin(struct ota_dl_state *state);
 int ota_dl_process(struct ota_dl_state *state, uint8_t *buf, size_t len);

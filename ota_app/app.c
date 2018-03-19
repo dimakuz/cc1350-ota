@@ -1,7 +1,14 @@
+#include <string.h>
 #include <ti/drivers/PWM.h>
 #include <ti/sysbios/knl/Task.h>
 
 #include <../boards/_CC1350_LAUNCHXL/_Board.h>
+
+#include "Include/ota.h"
+
+int payload_data = 4;
+static char payload_string[] = "Th1s is a string";
+static const char *payload_literal = "This is a string literal";
 
 void payload_test_app(UArg arg1, UArg arg2) {
     PWM_Handle pwm;
@@ -16,7 +23,9 @@ void payload_test_app(UArg arg1, UArg arg2) {
     while (pwm == NULL)
         ;
     PWM_start(pwm);
+    payload_data = strlen(payload_string) + strlen(payload_literal);
 }
+DEFINE_ENTRYPOINY(payload_test_app);
 
 int payload_test_app_end(void) {
     char c = 1;

@@ -11,6 +11,8 @@
 
 #include <../boards/_CC1350_LAUNCHXL/_Board.h>
 
+#define _UINT(x) ((uintptr_t) x)
+
 #define min(a,b) \
    ({ __typeof__ (a) _a = (a); \
        __typeof__ (b) _b = (b); \
@@ -173,12 +175,30 @@ void ota_startup(void) {
         }
     }
 
-    if (act->metadata.done == OTA_DONE_MAGIC)
+    if (act->metadata.done == OTA_DONE_MAGIC) {
+        for (int i = 0; i < OTA_MAX_LOADS; i++) {
+            struct ota_load *load = &OTA_REGION->zones[OTA_ACTIVE_ZONE].metadata.loads[i];
+            if (!load->len)
+                continue;
+
+            memcpy(
+                (void *) load->dest,
+                (void *) (_UINT(&OTA_REGION->zones[OTA_ACTIVE_ZONE].payload) + load->offset),
+                load->len
+            );
+        }
         __ota_startup();
+    }
+
 }
 
-#define OTA_ENTRYPOINT(zone) \
-    ((ota_entrypoint_t) (((uintptr_t) zone->payload) + ((zone->metadata.entrypoint)))
+void ota_dl_params_init(struct ota_dl_params *params) {
+    for (int i = 0; i < OTA_MAX_LOADS; i++) {
+        params->loads[i].dest = 0;
+        params->loads[i].offset = 0;
+        params->loads[i].len = 0;
+    }
+}
 
 void ota_dl_init(struct ota_dl_state *state, struct ota_dl_params *params) {
     state->target_zone = &OTA_REGION->zones[OTA_INACTIVE_ZONE];
@@ -192,6 +212,12 @@ void ota_dl_init(struct ota_dl_state *state, struct ota_dl_params *params) {
     state->entrypoint = params->entrypoint;
     state->sector_size = FlashSectorSizeGet();
     state->nr_sectors = sizeof (struct ota_zone) / state->sector_size;
+
+    for (int i = 0; i < OTA_MAX_LOADS; i++) {
+        state->loads[i].dest = params->loads[i].dest;
+        state->loads[i].offset = params->loads[i].offset;
+        state->loads[i].len = params->loads[i].len;
+    }
 }
 
 #define _first_sector(state)    \
@@ -257,6 +283,14 @@ int ota_dl_finish(struct ota_dl_state *state) {
         return (int) rc;
 
     rc = ota_FlashProgram(
+            (uint8_t *) &state->loads,
+            (uint32_t) &state->target_zone->metadata.loads,
+            sizeof (struct ota_load) * OTA_MAX_LOADS);
+
+    if (rc != FAPI_STATUS_SUCCESS)
+        return (int) rc;
+
+    rc = ota_FlashProgram(
             (uint8_t *) &magic,
             (uint32_t) &state->target_zone->metadata.done,
             sizeof (unsigned long));
@@ -273,7 +307,6 @@ int ota_dl_finish(struct ota_dl_state *state) {
 extern void payload_test_app(UArg arg1, UArg arg2);
 extern int payload_test_app_end(void);
 
-#define _UINT(x) ((uintptr_t) x)
 
 void test_ota(void) {
     size_t func_size = _UINT(payload_test_app_end) - _UINT(&OTA_REGION->zones[OTA_ACTIVE_ZONE].payload);
