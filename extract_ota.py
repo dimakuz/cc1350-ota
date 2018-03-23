@@ -3,9 +3,16 @@ import argparse
 import base64
 import json
 import os
+import sys
 
 from elftools.elf import elffile
 
+mswindows = (sys.platform == "win32")
+
+FLASH_OTA_BASE=0x17000
+FLASH_OTA_MAX_LEN=0x4000
+SRAM_OTA_BASE=0x20000000
+SRAM_OTA_MAX_LEN=0x1000
 
 def _range_contains_range(r1_start, r1_len, r2_start, r2_len):
     return (
@@ -26,19 +33,24 @@ def _seg_in_range(seg, r_start, r_len):
 def _seg_addr(seg):
     return seg.header.p_vaddr
 
-
 def _find_entrypoint(obj):
+    """Returns addresses of entry points in the ELF.
+
+    Note that on Windows the generated ELF does not use unicode strings.
+    """
+
     entrypoint = None
-    symtab = obj.get_section_by_name(b'.symtab')
+    symtab_name = '.symtab' if mswindows else b'.symtab'
+    symtab = obj.get_section_by_name(symtab_name)
     for sym in symtab.iter_symbols():
-        decname = sym.name.decode('utf8')
+        decname = sym.name if mswindows else sym.name.decode('utf8')
         if decname.startswith('__ota_entrypoint_'):
             entrypoint = decname[len('__ota_entrypoint_'):]
 
     if entrypoint is None:
         raise RuntimeError('No entrypoint found')
 
-    entrypoint = entrypoint.encode('utf8')
+    entrypoint = entrypoint if mswindows else entrypoint.encode('utf8')
     for sym in symtab.iter_symbols():
         if sym.name == entrypoint:
             return sym.entry.st_value
@@ -47,8 +59,31 @@ def _find_entrypoint(obj):
         "Could not find entrypoint symbol {0}".format(entrypoint)
     )
 
+def filter_segments(elf, segments):
+    """Filters out segments that don't correspond to .ota sections.
 
-def extract_ota(params):
+       e.g. .ota.* (e.g. .data:ti_sysbios_*).
+    """
+    seg_to_sect = {seg:[] for seg in segments}
+    sections = (s for s in elf.iter_sections())
+    for sec in sections:
+        for seg in segments:
+            if seg.section_in_segment(sec):
+                seg_to_sect[seg].append(sec)
+
+    fltr_segs = []
+    for seg, sects in seg_to_sect.items():
+        should_add = False
+        for sec in sects:
+            if sec.name in ('.ota.text', '.ota.data'):
+                should_add = True
+                break
+        if should_add:
+            fltr_segs.append(seg)
+
+    return tuple(fltr_segs)
+
+def extract_ota_impl(params, binary_path):
     def seg_in_ota_flash(seg):
         return _seg_in_range(seg, params.ota_flash_addr, params.ota_flash_len)
 
@@ -58,7 +93,7 @@ def extract_ota(params):
     def seg_in_ota(seg):
         return seg_in_ota_flash(seg) or seg_in_ota_sram(seg)
 
-    with open(params.binary_path, 'rb') as f:
+    with open(binary_path, 'rb') as f:
         obj = elffile.ELFFile(f)
         segments = tuple(
             sorted(
@@ -66,6 +101,7 @@ def extract_ota(params):
                 key=_seg_addr,
             ),
         )
+        segments = filter_segments(obj, segments)
         entrypoint = _find_entrypoint(obj) - params.ota_flash_addr
 
         data = b''
@@ -99,43 +135,66 @@ def extract_ota(params):
         'data': data,
     }
 
+def extract_ota(params):
+    """Extracts data and meta-data information from the ELF.
 
-def main():
+    Given a list of ELF files, (params.binary_paths), returns a JSON
+    dictionary with the following kv pairs:
+        size       - total size of the blob
+        loads      - one or more chunks from .ota.data
+                     (offset = offset for payload within the `data` blob
+                      len = #of bytes in memory for the segment,
+                      dest = load base address)
+        entrypoint - offset of entrypoint (relative to flash base)
+        data       - blob of code + data
+
+    """
+    assert len(params.binary_paths) == 1, "TODO: we need some refactoring for handling .obj and .out at the same time."
+    for binary_path in params.binary_paths:
+        return extract_ota_impl(params, binary_path)
+
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'binary_path',
+        'binary_paths',
+        nargs='+',
         type=str,
-        help='Path to binary containing the code to be extracted',
+        help='Path(s) to the binaries containing the code and data to be'
+             'extracted.',
     )
     parser.add_argument(
         '--ota-flash-addr',
         type=int,
-        default=0x17000,
+        default=FLASH_OTA_BASE,
         help='Start location OTA app in the flash',
         required=False,
     )
     parser.add_argument(
         '--ota-flash-len',
         type=int,
-        default=0x4000,
+        default=FLASH_OTA_MAX_LEN,
         help='Max length of OTA app in the flash',
         required=False,
     )
     parser.add_argument(
         '--ota-sram-addr',
         type=int,
-        default=0x20000000,
+        default=SRAM_OTA_BASE,
         help='Start location OTA app in the SRAM',
         required=False,
     )
     parser.add_argument(
         '--ota-sram-len',
         type=int,
-        default=0x1000,
+        default=SRAM_OTA_MAX_LEN,
         help='Max length of OTA app in the SRAM',
         required=False,
     )
     opts = parser.parse_args()
+    return opts
+
+def main():
+    opts = parse_args()
     res = extract_ota(opts)
     res['data'] = ''.join(
         (
