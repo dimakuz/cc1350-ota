@@ -1,4 +1,6 @@
 #!/bin/bash
+OUTFILE=$1
+shift
 
 env | tee /tmp/l
 
@@ -16,5 +18,11 @@ do
 	done
 done
 
+echo OUTFILE: $OUTFILE | tee -a /tmp/l
 echo $@ | tee -a /tmp/l
 $@
+
+echo Working Directory: $(pwd) | tee -a /tmp/l
+echo Running python ../extract_ota.py $OUTFILE ota_app/*.obj \> ota.json | tee -a /tmp/l
+echo $OBJCOPY --dump-section .ota.text=output.bin $OUTFILE | tee -a /tmp/l
+python ../extract_ota.py $OUTFILE ota_app/*.obj > ota.json
