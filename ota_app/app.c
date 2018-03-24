@@ -25,7 +25,7 @@ void payload_test_app(UArg arg1, UArg arg2) {
     PWM_start(pwm);
     payload_data = strlen(payload_string) + strlen(payload_literal);
 }
-DEFINE_ENTRYPOINY(payload_test_app);
+DEFINE_ENTRYPOINT(payload_test_app);
 
 int payload_test_app_end(void) {
     char c = 1;

@@ -15,7 +15,7 @@
 
 
 #define ota_entrypoint_t ti_sysbios_knl_Task_FuncPtr
-#define DEFINE_ENTRYPOINY(sym)  const char * __attribute__((strong))  __ota_entrypoint_##sym = "sym";
+#define DEFINE_ENTRYPOINT(sym)  const char * __attribute__((strong))  __ota_entrypoint_##sym = "sym";
 
 struct ota_load {
     uintptr_t dest;
