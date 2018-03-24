@@ -124,40 +124,53 @@ static inline ota_entrypoint_t ota_zone_entrypoint(struct ota_zone *zone) {
 }
 
 static void __ota_startup() {
-    Task_Params task_params;
-    Task_Struct task;    /* not static so you can see in ROV */
+    ota_entrypoint_t entrypoint = ota_zone_entrypoint(&OTA_REGION->zones[OTA_ACTIVE_ZONE]);
+    for (int i = 0; i < OTA_MAX_LOADS; i++) {
+        struct ota_load *load = &OTA_REGION->zones[OTA_ACTIVE_ZONE].metadata.loads[i];
+        if (!load->len)
+            continue;
 
-    /* Create the node task */
-    Task_Params_init(&task_params);
-    task_params.stackSize = OTA_TASK_STACK_SIZE;
-    task_params.priority = OTA_TASK_PRIORITY;
-    task_params.stack = &ota_task_stack;
-    Task_construct(&task, ota_zone_entrypoint(&OTA_REGION->zones[OTA_ACTIVE_ZONE]), &task_params, NULL);
+        void *dst = (void *) load->dest;
+        void *src = (void *) (_UINT(&OTA_REGION->zones[OTA_ACTIVE_ZONE].payload) + load->offset);
+        memcpy(dst, src, load->len);
+    }
+
+    entrypoint(0, 0);
 }
 
 #define OTA_COPY_CHUNK 256
 
-static void __ota_copy_zone(struct ota_zone *dst, struct ota_zone *src) {
+static int __ota_copy_zone(struct ota_zone *dst, struct ota_zone *src) {
     struct ota_dl_params p;
     struct ota_dl_state s;
     uint8_t buf[OTA_COPY_CHUNK];
+    int ret;
 
     p.dl_size = src->metadata.size;
     p.entrypoint = src->metadata.entrypoint;
+    memcpy(
+            &p.loads,
+            &src->metadata.loads,
+            sizeof (struct ota_load) * OTA_MAX_LOADS
+    );
 
     ota_dl_init(&s, &p);
     s.target_zone = dst;
     s.target_gen = src->metadata.gen + 1;
 
-    ota_dl_begin(&s);
+    ret = ota_dl_begin(&s);
+    if (ret != FAPI_STATUS_SUCCESS)
+        return ret;
 
     while (s.dl_done < s.dl_size) {
         size_t len = min(OTA_COPY_CHUNK, s.dl_size - s.dl_done);
         memcpy(buf, &src->payload[s.dl_done], len);
-        ota_dl_process(&s, buf, len);
+        ret = ota_dl_process(&s, buf, len);
+        if (ret != FAPI_STATUS_SUCCESS)
+            return ret;
     }
 
-    ota_dl_finish(&s);
+    return ota_dl_finish(&s);
 }
 
 void ota_startup(void) {
@@ -176,17 +189,6 @@ void ota_startup(void) {
     }
 
     if (act->metadata.done == OTA_DONE_MAGIC) {
-        for (int i = 0; i < OTA_MAX_LOADS; i++) {
-            struct ota_load *load = &OTA_REGION->zones[OTA_ACTIVE_ZONE].metadata.loads[i];
-            if (!load->len)
-                continue;
-
-            memcpy(
-                (void *) load->dest,
-                (void *) (_UINT(&OTA_REGION->zones[OTA_ACTIVE_ZONE].payload) + load->offset),
-                load->len
-            );
-        }
         __ota_startup();
     }
 
@@ -304,28 +306,48 @@ int ota_dl_finish(struct ota_dl_state *state) {
     return 0;
 }
 
+const char *test_dump = "10b5adf1280d07910690f1f7f7ff6846f4f77cf800208df808006420039000208df800006420019000206946f2f706f80890089810b908980028fcd00898f4f75dfa0a480068f4f7abf804460648f4f7a7f80449001908600398401c03900ab010bdc046dc000020c8000020e000002054686973206973206120737472696e67206c69746572616c00c046c073796d0054683173206973206120737472696e6700303030040000000000000000000000";
+
 extern void payload_test_app(UArg arg1, UArg arg2);
 extern int payload_test_app_end(void);
 
-
 void test_ota(void) {
-    size_t func_size = _UINT(payload_test_app_end) - _UINT(&OTA_REGION->zones[OTA_ACTIVE_ZONE].payload);
-    size_t offset = _UINT(payload_test_app) - _UINT(&(OTA_REGION->zones[OTA_ACTIVE_ZONE].payload[0]));
-    uint8_t *buf = malloc(func_size);
+    size_t data_len = strlen(test_dump) / 2;
+    uint8_t *buf = malloc(data_len);
+    const char *cur1 = test_dump;
+    uint8_t *cur2 = buf;
+    char temp[3];
 
-    memset(buf, 0, offset);
-    memcpy(&buf[offset], payload_test_app, func_size - offset);
+    temp[2] = 0;
+
+    while (*cur1) {
+        temp[0] = *(cur1++);
+        temp[1] = *(cur1++);
+        *(cur2++) = (uint8_t) strtoul(temp, NULL, 16);
+    }
 
     struct ota_dl_params p;
-    p.dl_size = func_size;
-    p.entrypoint = (ota_entrypoint_t) offset;
+    ota_dl_params_init(&p);
+    p.dl_size = data_len;
+    p.entrypoint = (ota_entrypoint_t) 1;
+    p.loads[0].dest = 0x200000c8;
+    p.loads[0].len = 32;
+    p.loads[0].offset = 144;
 
     struct ota_dl_state s;
     ota_dl_init(&s, &p);
-    ota_dl_begin(&s);
-    ota_dl_process(&s, buf, func_size);
-    ota_dl_finish(&s);
+    if (ota_dl_begin(&s) != FAPI_STATUS_SUCCESS)
+        return;
+    if (ota_dl_process(&s, buf, data_len) != FAPI_STATUS_SUCCESS)
+        return;
+
+    if (ota_dl_finish(&s) != FAPI_STATUS_SUCCESS)
+        return;
+
     __ota_copy_zone(&OTA_REGION->zones[OTA_ACTIVE_ZONE],
                     &OTA_REGION->zones[OTA_INACTIVE_ZONE]);
-    ota_zone_entrypoint(&OTA_REGION->zones[OTA_ACTIVE_ZONE])(0, 0);
+    __ota_startup();
+
+    if (data_len == 12321)
+        payload_test_app(0, 0);
 }
