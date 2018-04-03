@@ -140,6 +140,14 @@ extern void AssertHandler(uint8 assertCause, uint8 assertSubcause);
 
 extern Display_Handle dispHandle;
 
+void* my_dst_ptr = 0xdeadbeef;
+int cur_chunk = -2;
+int previous_chunk = -4;
+int cur_ret = -5;
+
+unsigned int bytes_received = -6;
+volatile int should_test_json = 0;
+
 /*******************************************************************************
  * @fn          Main
  *
@@ -208,8 +216,12 @@ int main()
 
   SimpleBLEPeripheral_createTask();
 
-  // ota_startup();
-  test_ota();
+  ota_startup();
+  if (should_test_json)
+  {
+      test_json();
+  }
+  //test_ota();
 
   /* enable interrupts and start SYS/BIOS */
   BIOS_start();

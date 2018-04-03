@@ -60,6 +60,8 @@
 #include "gapbondmgr.h"
 
 #include "simple_gatt_profile.h"
+#include <driverlib/sys_ctrl.h>
+#include <Include/ota.h>
 
 /*********************************************************************
  * MACROS
@@ -78,6 +80,114 @@
 /*********************************************************************
  * GLOBAL VARIABLES
  */
+
+static const uint32_t OTA_BLOB_MAGIC = 0xdabad000;
+
+#define OTA_MAX_BLOB_SIZE 200u
+#define OTA_CHUNK_MTU     80u
+
+#pragma pack(push, 1) // no padding
+struct OTABlob
+{
+    uint32_t magic;
+    uint16_t total_size;
+    uint8_t cur_chunk;
+    uint8_t num_chunks;
+    uint16_t checksum;
+    uint16_t chunk_len;
+    /* uint8_t blob[0]; */
+};
+#pragma pack(pop)
+
+static int g_previous_chunk = -1;
+static unsigned g_num_bytes_rcvd;
+
+extern int cur_chunk;
+extern int previous_chunk;
+
+static int check_blob(struct OTABlob* blob, size_t len)
+{
+    if (len < sizeof(struct OTABlob)) {
+        //std::cerr << "struct is too small." << std::endl;
+        while (1);
+        return -1;
+    }
+
+    if (blob->magic != OTA_BLOB_MAGIC) {
+        //std::cerr << "magic mismatch." << std::endl;
+        while (1);
+        return -1;
+    }
+
+    if (blob->total_size == 0 ||
+        blob->total_size > OTA_MAX_BLOB_SIZE) {
+        //std::cerr << "blob total size is 0 or exceeded max size: "
+        //          << blob->chunk_len << std::endl;
+        while (1);
+        return -1;
+    }
+
+    if (blob->chunk_len == 0 ||
+        blob->chunk_len > OTA_CHUNK_MTU) {
+        //std::cerr << "chunk length is 0 or exceeded max size: "
+        //          << blob->chunk_len << std::endl;
+        while (1);
+        return -1;
+    }
+
+    if (len < sizeof(*blob) + blob->chunk_len) {
+        //std::cerr << "invalid blob size: "
+        //          << g_num_bytes_rcvd + blob->chunk_len << std::endl;
+        while (1);
+        return -1;
+    }
+
+    // TODO: this doesn't allow interrupting a transfer
+    //       (i.e. restarting a failed transfer).
+    cur_chunk = (int)blob->cur_chunk;
+    previous_chunk = g_previous_chunk + 1;
+    if ((int)blob->cur_chunk != g_previous_chunk + 1) {
+        //std::cerr << "invalid chunk number." << std::endl;
+        while (1);
+        return -1;
+    }
+
+    if (g_num_bytes_rcvd + blob->chunk_len > OTA_MAX_BLOB_SIZE) {
+        //std::cerr << "exceeding max transfer with: "
+        //          << g_num_bytes_rcvd + blob->chunk_len << std::endl;
+        while (1);
+        return -1;
+    }
+
+    return 0;
+}
+
+static const char json_crap[] =
+{
+    0x10,  0xb5,  0xad,  0xf1,  0x28,  0xd,  0x7,  0x91,
+    0x6,  0x90,  0xf2,  0xf7,  0x97,  0xf8,  0x68,  0x46,
+    0xf4,  0xf7,  0x86,  0xf9,  0x0,  0x20,  0x8d,  0xf8,
+    0x8,  0x0,  0x64,  0x20,  0x3,  0x90,  0x0,  0x20,
+    0x8d,  0xf8,  0x0,  0x0,  0x64,  0x20,  0x1,  0x90,
+    0x0,  0x20,  0x69,  0x46,  0xf2,  0xf7,  0xa6,  0xf8,
+    0x8,  0x90,  0x8,  0x98,  0x10,  0xb9,  0x8,  0x98,
+    0x0,  0x28,  0xfc,  0xd0,  0x8,  0x98,  0xf4,  0xf7,
+    0x5f,  0xfb,  0x8,  0x48,  0x0,  0x68,  0xf4,  0xf7,
+    0xb5,  0xf9,  0x4,  0x46,  0x4,  0x48,  0xf4,  0xf7,
+    0xb1,  0xf9,  0x2,  0x49,  0x0,  0x19,  0x8,  0x60,
+    0xa,  0xb0,  0x10,  0xbd,  0xdc,  0x0,  0x0,  0x20,
+    0xc8,  0x0,  0x0,  0x20,  0xe0,  0x0,  0x0,  0x20,
+    0x54,  0x68,  0x69,  0x73,  0x20,  0x69,  0x73,  0x20,
+    0x61,  0x20,  0x73,  0x74,  0x72,  0x69,  0x6e,  0x67,
+    0x20,  0x6c,  0x69,  0x74,  0x65,  0x72,  0x61,  0x6c,
+    0x0,  0xc0,  0x46,  0xc0,  0x73,  0x79,  0x6d,  0x0,
+    0x54,  0x68,  0x31,  0x73,  0x20,  0x69,  0x73,  0x20,
+    0x61,  0x20,  0x73,  0x74,  0x72,  0x69,  0x6e,  0x67,
+    0x0,  0x30,  0x30,  0x30,  0x4,  0x0,  0x0,  0x0,
+    0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,  0x0,
+};
+
+
 // Simple GATT Profile Service UUID: 0xFFF0
 CONST uint8 simpleProfileServUUID[ATT_BT_UUID_SIZE] =
 { 
@@ -113,6 +223,8 @@ CONST uint8 simpleProfilechar5UUID[ATT_BT_UUID_SIZE] =
 { 
   LO_UINT16(SIMPLEPROFILE_CHAR5_UUID), HI_UINT16(SIMPLEPROFILE_CHAR5_UUID)
 };
+
+
 
 /*********************************************************************
  * EXTERNAL VARIABLES
@@ -160,14 +272,22 @@ static uint8 simpleProfileChar2UserDesp[17] = "Characteristic 2";
 static uint8 simpleProfileChar3Props = GATT_PROP_WRITE;
 
 // Characteristic 3 Value
-static uint8 simpleProfileChar3 = 0;
+static uint8 simpleProfileChar3[SIMPLEPROFILE_CHAR3_LEN] = { 0, };
+
+static unsigned simpleProfileChar3ActualSize = SIMPLEPROFILE_CHAR3_LEN;
+
+// Characteristic 3 Value
+//static uint8 simpleProfileChar3 = 0;
 
 // Simple Profile Characteristic 3 User Description
 static uint8 simpleProfileChar3UserDesp[17] = "Characteristic 3";
 
 
 // Simple Profile Characteristic 4 Properties
-static uint8 simpleProfileChar4Props = GATT_PROP_NOTIFY;
+// Ofir
+//static uint8 simpleProfileChar4Props = GATT_PROP_NOTIFY;
+static uint8 simpleProfileChar4Props = GATT_PROP_READ | GATT_PROP_NOTIFY;
+
 
 // Characteristic 4 Value
 static uint8 simpleProfileChar4 = 0;
@@ -264,9 +384,9 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
       // Characteristic Value 3
       { 
         { ATT_BT_UUID_SIZE, simpleProfilechar3UUID },
-        GATT_PERMIT_WRITE, 
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
         0, 
-        &simpleProfileChar3 
+        simpleProfileChar3
       },
 
       // Characteristic 3 User Description
@@ -288,7 +408,8 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
       // Characteristic Value 4
       { 
         { ATT_BT_UUID_SIZE, simpleProfilechar4UUID },
-        0, 
+        //Ofir 0,
+        GATT_PERMIT_READ,
         0, 
         &simpleProfileChar4 
       },
@@ -333,6 +454,34 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
         simpleProfileChar5UserDesp 
       },
 };
+
+extern unsigned int bytes_received;
+
+static int ota_transaction(struct OTABlob* blob, size_t len)
+{
+    if (check_blob(blob, len)) {
+        return -1;
+    }
+
+    void *blob_bytes = (uint8_t*)blob + sizeof(*blob);
+    void *dst = &simpleProfileChar3[g_num_bytes_rcvd];
+    memcpy(dst, blob_bytes, blob->chunk_len);
+
+    g_previous_chunk++;
+    g_num_bytes_rcvd += blob->chunk_len;
+    bytes_received = g_num_bytes_rcvd;
+
+    if (blob->cur_chunk + 1 == blob->num_chunks) {
+        //std::cout << "done, received: " << g_num_bytes_rcvd
+        //          << " bytes." << std::endl;
+        g_previous_chunk = -1;
+        g_num_bytes_rcvd = 0;
+        // TODO: add crc check
+    }
+
+    return 0;
+}
+
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -478,9 +627,18 @@ bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value )
       break;
 
     case SIMPLEPROFILE_CHAR3:
-      if ( len == sizeof ( uint8 ) ) 
+//      if ( len == sizeof ( uint8 ) )
+//      {
+//        simpleProfileChar3 = *((uint8*)value);
+//      }
+//      else
+//      {
+//        ret = bleInvalidRange;
+//      }
+//      break;
+      if ( len <= SIMPLEPROFILE_CHAR3_LEN )
       {
-        simpleProfileChar3 = *((uint8*)value);
+        VOID memcpy( simpleProfileChar3, value, len );
       }
       else
       {
@@ -505,7 +663,7 @@ bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value )
       break;
 
     case SIMPLEPROFILE_CHAR5:
-      if ( len == SIMPLEPROFILE_CHAR5_LEN ) 
+      if ( len == SIMPLEPROFILE_CHAR5_LEN )
       {
         VOID memcpy( simpleProfileChar5, value, SIMPLEPROFILE_CHAR5_LEN );
       }
@@ -624,6 +782,11 @@ static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
         VOID memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR5_LEN );
         break;
         
+      case SIMPLEPROFILE_CHAR3_UUID:
+        *pLen = simpleProfileChar3ActualSize;
+        VOID memcpy( pValue, pAttr->pValue, simpleProfileChar3ActualSize );
+        break;
+
       default:
         // Should never get here! (characteristics 3 and 4 do not have read permissions)
         *pLen = 0;
@@ -640,6 +803,9 @@ static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
 
   return ( status );
 }
+
+extern void* my_dst_ptr;
+extern int cur_ret;
 
 /*********************************************************************
  * @fn      simpleProfile_WriteAttrCB
@@ -670,38 +836,68 @@ static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
     switch ( uuid )
     {
       case SIMPLEPROFILE_CHAR1_UUID:
-      case SIMPLEPROFILE_CHAR3_UUID:
 
-        //Validate the value
-        // Make sure it's not a blob oper
-        if ( offset == 0 )
-        {
-          if ( len != 1 )
+          //Validate the value
+          // Make sure it's not a blob oper
+          if ( offset == 0 )
           {
-            status = ATT_ERR_INVALID_VALUE_SIZE;
-          }
-        }
-        else
-        {
-          status = ATT_ERR_ATTR_NOT_LONG;
-        }
-        
-        //Write the value
-        if ( status == SUCCESS )
-        {
-          uint8 *pCurValue = (uint8 *)pAttr->pValue;        
-          *pCurValue = pValue[0];
-
-          if( pAttr->pValue == &simpleProfileChar1 )
-          {
-            notifyApp = SIMPLEPROFILE_CHAR1;        
+            if ( len != 1 )
+            {
+              status = ATT_ERR_INVALID_VALUE_SIZE;
+            }
           }
           else
           {
-            notifyApp = SIMPLEPROFILE_CHAR3;           
+            status = ATT_ERR_ATTR_NOT_LONG;
+          }
+
+          //Write the value
+          if ( status == SUCCESS )
+          {
+            uint8 *pCurValue = (uint8 *)pAttr->pValue;
+            *pCurValue = pValue[0];
+
+            if( pAttr->pValue == &simpleProfileChar1 )
+            {
+              notifyApp = SIMPLEPROFILE_CHAR1;
+            }
+            else
+            {
+              notifyApp = SIMPLEPROFILE_CHAR3;
+            }
+          }
+
+          break;
+
+      case SIMPLEPROFILE_CHAR3_UUID:
+        my_dst_ptr = simpleProfileChar3;
+
+        //Validate the value
+        if ( offset != 0 || len > SIMPLEPROFILE_CHAR3_LEN ||
+             ota_transaction((struct OTABlob*)pValue, len) )
+        {
+            status = ATT_ERR_INVALID_VALUE_SIZE;
+            while (1);
+        }
+
+        //Write the value
+        if ( status == SUCCESS )
+        {
+          //VOID memcpy( my_dst_ptr, pValue, len );
+          //simpleProfileChar3ActualSize = len;
+          //notifyApp = SIMPLEPROFILE_CHAR3;
+          /* we finished copying the entire blob */
+          if (g_previous_chunk == -1) {
+              cur_ret = test_ota(my_dst_ptr, ((struct OTABlob*)pValue)->total_size);
+              if (cur_ret == 0) {
+                  SysCtrlSystemReset();
+              }
+
+              //cur_ret = memcmp(json_crap, my_dst_ptr, sizeof(json_crap));
+//              if (cur_ret == 0) {
+//              }
           }
         }
-             
         break;
 
       case GATT_CLIENT_CHAR_CFG_UUID:

@@ -6,9 +6,10 @@
 
 #include "Include/ota.h"
 
-int payload_data = 4;
+volatile int payload_data = 4;
 static char payload_string[] = "Th1s is a string";
 static const char *payload_literal = "This is a string literal";
+int led_ = Board_PWM0;
 
 void payload_test_app(UArg arg1, UArg arg2) {
     PWM_Handle pwm;
@@ -19,11 +20,12 @@ void payload_test_app(UArg arg1, UArg arg2) {
     pwm_p.dutyValue = 100;
     pwm_p.periodUnits = PWM_PERIOD_US;
     pwm_p.periodValue = 100;
-    pwm = PWM_open(Board_PWM0, &pwm_p);
+    pwm = PWM_open(led_, &pwm_p);
     while (pwm == NULL)
         ;
     PWM_start(pwm);
-    payload_data = strlen(payload_string) + strlen(payload_literal);
+    if (payload_data == 5)
+        payload_data = strlen(payload_string) + strlen(payload_literal);
 }
 DEFINE_ENTRYPOINT(payload_test_app);
 

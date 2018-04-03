@@ -70,14 +70,14 @@
 /* must be located at the beginning of the application. Flash is 128KB, with */
 /* sector length of 4KB                                                      */
 #define FLASH_APP_BASE          0x00000000
-#define FLASH_NOTA_LEN			0x17000
-#define FLASH_OTA_LEN			0x8000
+#define FLASH_NOTA_LEN			0xd000
+#define FLASH_OTA_LEN			0x2000
 #define FLASH_OTA_BASE			FLASH_APP_BASE + FLASH_NOTA_LEN
 #define FLASH_LEN               0x20000
 #define FLASH_PAGE_LEN          0x1000
 
 /* Last page of Flash is allocated to App: 0x1F000 - 0x1FFFF */
-#define FLASH_NOTA_LAST_PAGE_START   FLASH_OTA_BASE - FLASH_OTA_LEN
+#define FLASH_NOTA_LAST_PAGE_START   FLASH_OTA_BASE - FLASH_PAGE_LEN
 
 /* RAM starts at 0x20000000 and is 20KB */
 #define RAM_APP_BASE            0x20000000
@@ -103,6 +103,7 @@ MEMORY
 
     /* Application stored in and executes from internal flash */
     /* Flash Size 128 KB */
+/*
     #ifdef ICALL_STACK0_START
         FLASH_NOTA (RX) : origin = FLASH_APP_BASE, length = ICALL_STACK0_START - FLASH_APP_BASE
         FLASH_OTA (RX) : origin = FLASH_OTA_BASE, length = FLASH_OTA_LEN
@@ -110,9 +111,13 @@ MEMORY
         FLASH_NOTA (RX) : origin = FLASH_APP_BASE, length = FLASH_NOTA_LEN - FLASH_PAGE_LEN
         FLASH_OTA (RX) : origin = FLASH_OTA_BASE, length = FLASH_OTA_LEN
     #endif
+*/
 
+    FLASH_NOTA (RX) : origin = FLASH_APP_BASE, length = FLASH_NOTA_LEN - FLASH_PAGE_LEN
     // CCFG Page, contains .ccfg code section and some application code.
     FLASH_NOTA_LAST_PAGE (RX) :  origin = FLASH_NOTA_LAST_PAGE_START, length = FLASH_PAGE_LEN
+    FLASH_OTA (RX) : origin = FLASH_OTA_BASE, length = FLASH_OTA_LEN
+
 
     /* Application uses internal RAM for data */
     /* RAM Size 16 KB */
@@ -138,6 +143,7 @@ SECTIONS
     .pinit          :   >> FLASH_NOTA | FLASH_NOTA_LAST_PAGE
     .init_array     :   >> FLASH_NOTA | FLASH_NOTA_LAST_PAGE
     .emb_text       :   >> FLASH_NOTA | FLASH_NOTA_LAST_PAGE
+    .ccfg           :   >  FLASH_NOTA_LAST_PAGE
 
     .ota.text           :   >> FLASH_OTA
     .ota.const          :   >> FLASH_OTA
@@ -148,7 +154,7 @@ SECTIONS
     .ota.init_array     :   >> FLASH_OTA
     .ota.emb_text       :   >> FLASH_OTA
 
-    .ccfg           :   >  FLASH_NOTA_LAST_PAGE (HIGH)
+/*    .ccfg           :   >  FLASH_NOTA_LAST_PAGE (HIGH) */
 
     GROUP > SRAM_OTA
     {

@@ -1,11 +1,12 @@
 #!/bin/bash
+set -e
 OUTFILE=$1
 shift
 
 env | tee /tmp/l
 
-OBJCOPY="$(dirname $1)/../../gcc-arm-none-eabi-6-2017-q1-update/bin/arm-none-eabi-objcopy"
-OBJDUMP="$(dirname $1)/../../gcc-arm-none-eabi-6-2017-q1-update/bin/arm-none-eabi-objdump"
+OBJCOPY="$(dirname $1)/../../gcc-arm-none-eabi-*/bin/arm-none-eabi-objcopy"
+OBJDUMP="$(dirname $1)/../../gcc-arm-none-eabi-*/bin/arm-none-eabi-objdump"
 
 for OTA_OBJ in ota_app/*.obj;
 do

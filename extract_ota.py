@@ -10,8 +10,8 @@ from elftools.elf import elffile
 
 mswindows = (sys.platform == "win32")
 
-FLASH_OTA_BASE=0x17000
-FLASH_OTA_MAX_LEN=0x4000
+FLASH_OTA_BASE=0xd000
+FLASH_OTA_MAX_LEN=0x2000
 SRAM_OTA_BASE=0x20000000
 SRAM_OTA_MAX_LEN=0x1000
 
@@ -248,7 +248,7 @@ def extract_ota(params):
     entries = read_linker_map(map_file)
 
     # Make sure .out file is always first.
-    binary_paths = [out_file] + list(set(params.binary_paths) - set(out_file))
+    binary_paths = [out_file] + list(set(params.binary_paths) - set([out_file]))
 
     for binary_path in binary_paths:
         if binary_path.endswith('.out'):
