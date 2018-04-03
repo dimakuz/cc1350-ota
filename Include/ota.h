@@ -4,8 +4,11 @@
 #include <stdint.h>
 #include <ti/sysbios/knl/Task.h>
 
-#define OTA_FLASH_BASE 0x17000
-#define OTA_FLASH_SIZE 0x8000
+//#define OTA_FLASH_BASE 0x17000
+#define OTA_FLASH_BASE 0xd000
+//#define OTA_FLASH_SIZE 0x8000
+#define OTA_FLASH_SIZE 0x2000
+
 #define OTA_ACTIVE_ZONE 0
 #define OTA_INACTIVE_ZONE 1
 #define NR_OTA_ZONES    2
@@ -71,6 +74,7 @@ int ota_dl_begin(struct ota_dl_state *state);
 int ota_dl_process(struct ota_dl_state *state, uint8_t *buf, size_t len);
 int ota_dl_finish(struct ota_dl_state *state);
 
-void test_ota(void);
+int test_ota(uint8_t* buf, size_t data_len);
+void test_json(void);
 
 #endif // OTA_H

@@ -173,10 +173,17 @@ static int __ota_copy_zone(struct ota_zone *dst, struct ota_zone *src) {
     return ota_dl_finish(&s);
 }
 
+extern void payload_test_app(UArg arg1, UArg arg2);
+
 void ota_startup(void) {
     // Check if inactive image is newer, if it is, copy over active and reset
     struct ota_zone *act = &OTA_REGION->zones[OTA_ACTIVE_ZONE];
     struct ota_zone *inact = &OTA_REGION->zones[OTA_INACTIVE_ZONE];
+
+//    if (inact->metadata.done != OTA_DONE_MAGIC &&
+//        act->metadata.done != OTA_DONE_MAGIC) {
+//        test_json();
+//    }
 
     if (inact->metadata.done == OTA_DONE_MAGIC) {
 
@@ -184,12 +191,15 @@ void ota_startup(void) {
             inact->metadata.gen > act->metadata.gen
         ) {
             __ota_copy_zone(act, inact);
-            SysCtrlSystemReset();
+//            SysCtrlSystemReset();
         }
     }
 
     if (act->metadata.done == OTA_DONE_MAGIC) {
         __ota_startup();
+    }
+    else {
+        payload_test_app(0, 0);
     }
 
 }
@@ -306,14 +316,49 @@ int ota_dl_finish(struct ota_dl_state *state) {
     return 0;
 }
 
-const char *test_dump = "10b5adf1280d07910690f1f7f7ff6846f4f77cf800208df808006420039000208df800006420019000206946f2f706f80890089810b908980028fcd00898f4f75dfa0a480068f4f7abf804460648f4f7a7f80449001908600398401c03900ab010bdc046dc000020c8000020e000002054686973206973206120737472696e67206c69746572616c00c046c073796d0054683173206973206120737472696e6700303030040000000000000000000000";
+const char *test_dump = "10b5adf1280d07910690f2f711f96846f4f7bcf900208df808006420039000208df800006420019001206946f2f720f90890089810b908980028fcd00898f4f7a7fb0848006805280ad108480068f4f7f1f904460448f4f7edf90249001908600ab010bddc000020c8000020e000002054686973206973206120737472696e67206c69746572616c00c046c073796d0054683173206973206120737472696e6700303030040000000000000000000000";
 
-extern void payload_test_app(UArg arg1, UArg arg2);
 extern int payload_test_app_end(void);
 
-void test_ota(void) {
+int test_ota(uint8_t* buf, size_t data_len) {
+    struct ota_dl_params p;
+    ota_dl_params_init(&p);
+    p.dl_size = data_len;
+    p.entrypoint = (ota_entrypoint_t) 1;
+    p.loads[0].dest = 0x200000c8;
+    p.loads[0].len = 36;
+    p.loads[0].offset = 152;
+
+    struct ota_dl_state s;
+    ota_dl_init(&s, &p);
+    if (ota_dl_begin(&s) != FAPI_STATUS_SUCCESS)
+        return -1;
+
+    if (ota_dl_process(&s, buf, data_len) != FAPI_STATUS_SUCCESS)
+        return -1;
+
+    if (ota_dl_finish(&s) != FAPI_STATUS_SUCCESS)
+        return -1;
+
+#if 0
+    __ota_copy_zone(&OTA_REGION->zones[OTA_ACTIVE_ZONE],
+                    &OTA_REGION->zones[OTA_INACTIVE_ZONE]);
+    __ota_startup();
+#endif
+
+    if (data_len == 12321)
+        payload_test_app(0, 0);
+
+    return 0;
+}
+
+
+void test_json(void) {
+    int ret;
     size_t data_len = strlen(test_dump) / 2;
     uint8_t *buf = malloc(data_len);
+    if (!buf)
+        while (1);
     const char *cur1 = test_dump;
     uint8_t *cur2 = buf;
     char temp[3];
@@ -326,28 +371,9 @@ void test_ota(void) {
         *(cur2++) = (uint8_t) strtoul(temp, NULL, 16);
     }
 
-    struct ota_dl_params p;
-    ota_dl_params_init(&p);
-    p.dl_size = data_len;
-    p.entrypoint = (ota_entrypoint_t) 1;
-    p.loads[0].dest = 0x200000c8;
-    p.loads[0].len = 32;
-    p.loads[0].offset = 144;
-
-    struct ota_dl_state s;
-    ota_dl_init(&s, &p);
-    if (ota_dl_begin(&s) != FAPI_STATUS_SUCCESS)
-        return;
-    if (ota_dl_process(&s, buf, data_len) != FAPI_STATUS_SUCCESS)
-        return;
-
-    if (ota_dl_finish(&s) != FAPI_STATUS_SUCCESS)
-        return;
-
-    __ota_copy_zone(&OTA_REGION->zones[OTA_ACTIVE_ZONE],
-                    &OTA_REGION->zones[OTA_INACTIVE_ZONE]);
-    __ota_startup();
-
-    if (data_len == 12321)
-        payload_test_app(0, 0);
+    ret = test_ota(buf, data_len);
+    free(buf);
+    if (ret == 0) {
+        SysCtrlSystemReset();
+    }
 }
