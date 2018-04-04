@@ -133,7 +133,7 @@ def extract_ota_code(params, binary_path):
         data_offset = params.ota_flash_addr
         loads = []
 
-        for seg in segments:
+        for seg in sorted(segments, key=lambda x: x.header.p_vaddr):
             if seg_in_ota_flash(seg):
                 skip = seg.header.p_vaddr - data_offset
                 data += (b'\x00' * skip)
