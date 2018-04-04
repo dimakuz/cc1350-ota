@@ -4,9 +4,7 @@
 #include <stdint.h>
 #include <ti/sysbios/knl/Task.h>
 
-//#define OTA_FLASH_BASE 0x17000
 #define OTA_FLASH_BASE 0xd000
-//#define OTA_FLASH_SIZE 0x8000
 #define OTA_FLASH_SIZE 0x2000
 
 #define OTA_ACTIVE_ZONE 0
