@@ -1,8 +1,9 @@
 #!/bin/bash -xe
 
 MAC=$1
+BLOBS=${2:-ota_blobs}
 
-cd ./ota_blobs/
+cd $BLOBS
 for FILE in $(ls -1 | sort)
 do
 	gatttool --device=$MAC \

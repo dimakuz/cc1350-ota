@@ -83,7 +83,7 @@
 
 static const uint32_t OTA_BLOB_MAGIC = 0xdabad000;
 
-#define OTA_MAX_BLOB_SIZE 200u
+#define OTA_MAX_BLOB_SIZE 400u
 #define OTA_CHUNK_MTU     80u
 
 #pragma pack(push, 1) // no padding
@@ -96,6 +96,12 @@ struct OTABlob
     uint16_t checksum;
     uint16_t chunk_len;
     /* uint8_t blob[0]; */
+};
+
+struct OTAHeader {
+    uint16_t entrypoint;
+    uint16_t size;
+    struct ota_load loads[OTA_MAX_LOADS];
 };
 
 #pragma pack(pop)
@@ -431,6 +437,11 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
       },
 };
 
+#define _OTA_STATE_NEW  0
+#define _OTA_STATE_DATA 1
+static int _ota_state = _OTA_STATE_NEW;
+static struct ota_dl_params ota_params;
+static struct ota_dl_state ota_state;
 extern unsigned int bytes_received;
 
 static int ota_transaction(struct OTABlob* blob, size_t len)
@@ -438,10 +449,37 @@ static int ota_transaction(struct OTABlob* blob, size_t len)
     if (check_blob(blob, len)) {
         return -1;
     }
+    len -= sizeof (struct OTABlob);
 
-    void *blob_bytes = (uint8_t*)blob + sizeof(*blob);
-    void *dst = &simpleProfileChar3[g_num_bytes_rcvd];
-    memcpy(dst, blob_bytes, blob->chunk_len);
+    uint8_t *data = (void *) blob;
+    data = data + sizeof (struct OTABlob);
+    struct OTAHeader *header;
+
+    switch (_ota_state) {
+    case _OTA_STATE_NEW:
+        header = (struct OTAHeader *) data;
+        ota_dl_params_init(&ota_params);
+        ota_params.entrypoint = (ota_entrypoint_t) header->entrypoint;
+        ota_params.dl_size = header->size;
+        for (int i = 0; i < OTA_MAX_LOADS; i++) {
+            ota_params.loads[i].offset = header->loads[i].offset;
+            ota_params.loads[i].len = header->loads[i].len;
+            ota_params.loads[i].dest = header->loads[i].dest;
+        }
+        ota_dl_init(&ota_state, &ota_params);
+        ota_dl_begin(&ota_state);
+        len -= sizeof (struct OTAHeader);
+        data = data + sizeof (struct OTAHeader);
+        _ota_state = _OTA_STATE_DATA;
+    case _OTA_STATE_DATA:
+        if (len) {
+            ota_dl_process(&ota_state, data, len);
+        }
+        if (ota_state.dl_done == ota_state.dl_size) {
+            ota_dl_finish(&ota_state);
+        }
+        break;
+    }
 
     g_previous_chunk++;
     g_num_bytes_rcvd += blob->chunk_len;
@@ -850,19 +888,9 @@ static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
         //Write the value
         if ( status == SUCCESS )
         {
-          //VOID memcpy( my_dst_ptr, pValue, len );
-          //simpleProfileChar3ActualSize = len;
-          //notifyApp = SIMPLEPROFILE_CHAR3;
           /* we finished copying the entire blob */
           if (g_previous_chunk == -1) {
-              cur_ret = test_ota(my_dst_ptr, ((struct OTABlob*)pValue)->total_size);
-              if (cur_ret == 0) {
-                  SysCtrlSystemReset();
-              }
-
-              //cur_ret = memcmp(json_crap, my_dst_ptr, sizeof(json_crap));
-//              if (cur_ret == 0) {
-//              }
+             SysCtrlSystemReset();
           }
         }
         break;

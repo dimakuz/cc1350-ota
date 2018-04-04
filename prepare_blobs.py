@@ -46,11 +46,27 @@ def chunk_csum(chunk):
     return 0
 
 
+def dump_load(dest, off, size):
+    return struct.pack('<LHH', dest, off, size)
+
+
+def dump_metadata(ota):
+    res = struct.pack('<HH', ota['entrypoint'], int(len(ota['data']) / 2))
+    for i in range(3):
+        try:
+            l = ota['loads'][i]
+            load = (l['dest'], l['offset'], l['len'])
+        except IndexError:
+            load = (0, 0, 0)
+        res += dump_load(*load)
+    return to_hex(res)
+
+
 def main():
     with open(sys.argv[1]) as f:
         ota = json.load(f)
 
-    data = ota['data']
+    data = dump_metadata(ota) + ota['data']
     total_size = int(len(data) / 2)
 
     num_chunks = int(math.ceil(total_size / _CHUNK_PAYLOAD_SIZE))

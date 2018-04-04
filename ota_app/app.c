@@ -9,7 +9,7 @@
 volatile int payload_data = 4;
 static char payload_string[] = "Th1s is a string";
 static const char *payload_literal = "This is a string literal";
-int led_ = Board_PWM0;
+int led_ = Board_PWM1;
 
 void payload_test_app(UArg arg1, UArg arg2) {
     PWM_Handle pwm;

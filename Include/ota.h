@@ -18,11 +18,13 @@
 #define ota_entrypoint_t ti_sysbios_knl_Task_FuncPtr
 #define DEFINE_ENTRYPOINT(sym)  const char * __attribute__((strong))  __ota_entrypoint_##sym = "sym";
 
+#pragma pack(push, 1) // no padding
 struct ota_load {
     uintptr_t dest;
-    size_t offset;
-    size_t len;
+    uint16_t offset;
+    uint16_t len;
 };
+#pragma pack(pop)
 
 #define OTA_MAX_LOADS 3
 
