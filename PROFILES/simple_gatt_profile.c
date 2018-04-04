@@ -109,21 +109,16 @@ struct OTAHeader {
 static int g_previous_chunk = -1;
 static unsigned g_num_bytes_rcvd;
 
-extern int cur_chunk;
-extern int previous_chunk;
-
 static int check_blob(struct OTABlob* blob, size_t len)
 {
     if (len < sizeof(struct OTABlob)) {
         //std::cerr << "struct is too small." << std::endl;
         while (1);
-        return -1;
     }
 
     if (blob->magic != OTA_BLOB_MAGIC) {
         //std::cerr << "magic mismatch." << std::endl;
         while (1);
-        return -1;
     }
 
     if (blob->total_size == 0 ||
@@ -131,7 +126,6 @@ static int check_blob(struct OTABlob* blob, size_t len)
         //std::cerr << "blob total size is 0 or exceeded max size: "
         //          << blob->chunk_len << std::endl;
         while (1);
-        return -1;
     }
 
     if (blob->chunk_len == 0 ||
@@ -139,20 +133,14 @@ static int check_blob(struct OTABlob* blob, size_t len)
         //std::cerr << "chunk length is 0 or exceeded max size: "
         //          << blob->chunk_len << std::endl;
         while (1);
-        return -1;
     }
 
     if (len < sizeof(*blob) + blob->chunk_len) {
         //std::cerr << "invalid blob size: "
         //          << g_num_bytes_rcvd + blob->chunk_len << std::endl;
         while (1);
-        return -1;
     }
 
-    // TODO: this doesn't allow interrupting a transfer
-    //       (i.e. restarting a failed transfer).
-    cur_chunk = (int)blob->cur_chunk;
-    previous_chunk = g_previous_chunk + 1;
     if ((int)blob->cur_chunk != g_previous_chunk + 1) {
         //std::cerr << "invalid chunk number." << std::endl;
         while (1);
@@ -442,7 +430,6 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
 static int _ota_state = _OTA_STATE_NEW;
 static struct ota_dl_params ota_params;
 static struct ota_dl_state ota_state;
-extern unsigned int bytes_received;
 
 static int ota_transaction(struct OTABlob* blob, size_t len)
 {
@@ -483,7 +470,6 @@ static int ota_transaction(struct OTABlob* blob, size_t len)
 
     g_previous_chunk++;
     g_num_bytes_rcvd += blob->chunk_len;
-    bytes_received = g_num_bytes_rcvd;
 
     if (blob->cur_chunk + 1 == blob->num_chunks) {
         //std::cout << "done, received: " << g_num_bytes_rcvd
@@ -809,8 +795,6 @@ static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
   return ( status );
 }
 
-extern void* my_dst_ptr;
-extern int cur_ret;
 
 /*********************************************************************
  * @fn      simpleProfile_WriteAttrCB
@@ -875,8 +859,6 @@ static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
           break;
 
       case SIMPLEPROFILE_CHAR3_UUID:
-        my_dst_ptr = simpleProfileChar3;
-
         //Validate the value
         if ( offset != 0 || len > SIMPLEPROFILE_CHAR3_LEN ||
              ota_transaction((struct OTABlob*)pValue, len) )
