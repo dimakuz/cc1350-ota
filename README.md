@@ -14,38 +14,34 @@ Prerequisites
 
 How to build
 ============
-1) Clone this repository
-2) Open CCS
+1. Clone this repository
+1. Open CCS
+   1. Import the BLE stack project from the TI SDK folder
+      (`<ti>/simplelink_cc13x0_sdk_1_60_00_21/examples/rtos/CC1350_LAUNCHXL/blestack/simple_peripheral/tirtos/ccs`)
+   1. Import the cc1350-ota project (from this repository)
+   1. Build the `stack` project
+   1. Build the `app` project
+1. OTA client
+   1. On Windows - build the gattclient C# client
+   1. On Linux:
+      1. Install dependencies: `sudo dnf install python3-pyelftools bluez`
 
-a) Import the BLE stack project from the TI SDK folder
-   (<ti>/simplelink_cc13x0_sdk_1_60_00_21/examples/rtos/CC1350_LAUNCHXL/blestack/simple_peripheral/tirtos/ccs)
-
-b) Import the cc1350-ota project (from this repository)
-
-c) Build the "stack" project
-
-d) Build the "app" project
-
-3) OTA client
-
-a) On Windows - build the gattclient C# client
-
-b) On Linux: TODO: add steps
 
 How to run
 ==========
-1) Flash the projects onto the board (via Eclipse / Uniflash)
-a) Flash the built "stack" project onto the board
-b) Flash the built "app" project onto the board
-
-2) Run the GATT client
+1. Flash the projects onto the board (via Eclipse / Uniflash)
+   1. Flash the built "stack" project onto the board
+   1. Flash the built "app" project onto the board
+1. Run the GATT client
    The GATT client accepts a path to a .json file, and transmits the application
    blob (metadata + code + data) onto the board via BLE.
-   The JSON file (ota.json) can be located under the Debug/ directory of the app project.
+   The JSON file (`ota.json`) can be located under the `Debug/` directory of the app project.
 
-a) On Windows: run the gattclient.exe <path to json>
-
-b) On Linux: TODO: add steps
+   1. On Windows: run the `gattclient.exe <path to json>`
+   1. On Linux:
+      1. Convert the JSON artifact into a series of blobs: `./prepare_blobs.py Debug/ota.json`. This will create $PWD/ota_blobs directory.
+      1. Discover the MAC address of your CC1350 board, easy way to do this is with `sudo hcitool lescan -i hciXX`
+      1. Push the OTA blobs to the board: `./push_ota.sh BLE_MAC_ADDR DIR_WITH_BLOBS`
 
 License
 =======
